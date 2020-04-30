@@ -59,8 +59,14 @@ class Consumer(multiprocessing.Process):
                 return msg.value
 
     def readMessageByPartitionOffsetAvro(self):
-        client = SchemaRegistryClient("http://127.0.0.1:8080")
+        try:
+            schema_registry = self.conf['schema_registry']
+        except:
+            errx("Option 'schema_registry' not found")
+
+        client = SchemaRegistryClient(schema_registry)
         message_serializer = MessageSerializer(client)
+        debug(level=1, MessageSerializer=MessageSerializer)
         try:
             security_protocol = self.conf['security_protocol']
         except:
@@ -90,4 +96,3 @@ class Consumer(multiprocessing.Process):
                 assert isinstance(message_encoded, bytes)
                 message_decoded = message_serializer.decode_message(message_encoded)
                 return message_decoded
-

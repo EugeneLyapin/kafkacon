@@ -18,8 +18,6 @@ def debug(level=1, **kwargs):
     if config.debug >= level:
         for key in kwargs:
             value = kwargs[key]
-            if type(value) is unicode:
-                value = value.encode('ascii', 'ignore')
             if len(out) > 0:
                 out += " "
             out += key + "=" + "'" + str(value) + "'"

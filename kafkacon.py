@@ -21,7 +21,6 @@ def main():
     data = kms.decrypt(CiphertextBlob=CiphertextBlob)
     debug(level=1, service=kms.service, data=data)
 
-
 if __name__ == '__main__':
     conf = config.getConf(sys.argv[1:])
     exit(main())

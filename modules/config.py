@@ -3,7 +3,6 @@ import json
 import sys
 import os
 import yaml
-
 from debug import errx, debug, trace
 
 def getConf(args):
