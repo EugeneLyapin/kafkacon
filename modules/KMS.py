@@ -3,25 +3,36 @@ import time
 import datetime
 import yaml
 import boto3
+import base64
 from botocore.exceptions import ClientError, ParamValidationError, EndpointConnectionError, ConnectTimeoutError
 from debug import errx, debug, trace
 
 class aws(object):
     """aws boto3 class"""
     name = "aws"
+    region = None
+
+    conf = {
+        'EncryptionAlgorithm': 'SYMMETRIC_DEFAULT'
+    }
 
     ErrHandler = {}
+
     def __init__(self, conf=None):
         self.name = self.getname()
-        self.conf = conf
-        self.region = region
+        self.getconf(conf)
         self.client = self.connect()
+        
+    def getconf(self, conf):
+        pass
 
     def connect(self):
-        return boto3.client(self.service, region_name=self.region)
+        try:
+            self.region = self.conf['region']
+        except:
+            errx('Option region is not defined')
 
-    def decrypt(self):
-        return {}
+        return boto3.client(self.service, region_name=self.region)
 
     def getname(self):
         return self.__class__.__name__
@@ -34,14 +45,14 @@ class aws(object):
         return json.loads(json.dumps(data, default=self.json_datetime_serialize))
 
     def botoHandler(self, call=None, key=None, **kwargs):
-        default = { key: {} }
+        items = { key: {} }
         data = self.boto_method_handler(call=call, **kwargs)
         try:
             items = data[key]
         except:
-            data = default
+            pass
 
-        return data
+        return items
 
     def boto_method_handler(self, call=None, **kwargs):
         data = {}
@@ -66,7 +77,7 @@ class aws(object):
                 data['ErrorData'] = self.ErrHandler.get(errcode, errx)(error)
             except:
                 debug(level=1, service=self.name, region=self.region)
-                errx(error)
+                raise
 
         except (ValueError, TypeError, ParamValidationError) as error:
             debug(level=1, service=self.name, region=self.region)
@@ -84,5 +95,25 @@ class KMS(aws):
     name = "KMS"
     service = "kms"
 
-    def decrypt(self):
-        return self.botoHandler(call=)
+    def getconf(self, conf):
+        try:
+            self.conf.update(conf['data']['KMS'])
+        except:
+            errx("No KMS configuration found")
+
+        self.conf.update(conf['parser'])
+        trace(self.conf)
+
+    def base64decode(self, data):
+        return base64.b64decode(data)
+
+    def decrypt(self, CiphertextBlob=None):
+        try:
+            KeyId = self.conf['KeyId']
+        except:
+            errx("No KeyId found in configuration file")
+
+        DecodedCiphertextBlob = self.base64decode(CiphertextBlob)
+        return self.botoHandler(call=self.client.decrypt, key='Plaintext',
+                                CiphertextBlob=DecodedCiphertextBlob, KeyId=KeyId,
+                                EncryptionAlgorithm=self.conf['EncryptionAlgorithm'])

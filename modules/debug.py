@@ -3,8 +3,9 @@ import pprint
 import config
 
 def errx(msg=None):
-    print
-    print("[ERROR]: %s" % msg)
+    if msg is not None:
+        print
+        print("[ERROR]: %s" % msg)
     sys.exit('')
 
 def trace(data=None):

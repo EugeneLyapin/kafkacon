@@ -13,19 +13,14 @@ from Kafka import Consumer
 from KMS import KMS
 
 def main():
-    tasks = [
-        Consumer(conf=conf)
-    ]
+    consumer = Consumer(conf=conf)
+    CiphertextBlob = consumer.readMessageByPartitionOffsetAvro()
+    CiphertextBlob = 'AQICAHhJQblkxQwd25zGDR3lbyJ2t+DNP98Mw8bSKctqHqSS7AGdEYy39rHwqpkcPDzXy2QIAAAAbTBrBgkqhkiG9w0BBwagXjBcAgEAMFcGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMC7BlNXPlD1H00MRtAgEQgCoj1FXHltlKtwOsZ5lSC9IHjd18A2nc66R/G8Gk0p39wEnqwa0U4MmonGY='
+    kms = KMS(conf=conf)
+    debug(level=1, obj=kms, service=kms.service)
+    data = kms.decrypt(CiphertextBlob=CiphertextBlob)
+    debug(level=1, service=kms.service, data=data)
 
-    for t in tasks:
-        t.start()
-
-    time.sleep(10)
-    for task in tasks:
-        task.stop()
-
-    for task in tasks:
-        task.join()
 
 if __name__ == '__main__':
     conf = config.getConf(sys.argv[1:])

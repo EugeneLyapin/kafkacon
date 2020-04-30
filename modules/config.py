@@ -11,9 +11,10 @@ def getConf(args):
 
     default_filename = 'config.yaml'
     parser = argparse.ArgumentParser()
-    parser.add_argument('--broker', type=str, required=True, action='store')
-    parser.add_argument('--offset', type=str, required=True, action='store')
-    parser.add_argument('--topic', type=str, required=True, action='store')
+    parser.add_argument('--brokers', type=str, dest='brokers', nargs='*', action='store', default=[])
+    parser.add_argument('--offset', type=str, action='store', default=None)
+    parser.add_argument('--partition', type=str, action='store', default=None)
+    parser.add_argument('--topic', type=str, action='store', default=None)
     parser.add_argument('--filename', type=str, action='store', default=default_filename)
     parser.add_argument('--debug', type=int, action='store', default=0)
     options = parser.parse_args(args)
@@ -30,12 +31,17 @@ def getConf(args):
     data = yaml.safe_load(fd)
 
     conf = {
-      'data': data
+      'data': data,
+      'parser': {}
     }
 
-    for key in ['broker', 'offset', 'topic', 'debug']:
+    for key in ['offset', 'partition', 'topic', 'debug']:
         val = getattr(options, key)
-        if val is not None:
-            conf[key] = val
+        if val != None:
+            conf['parser'][key] = val
+
+    val = options.brokers
+    if val != []:
+        conf['parser']['brokers'] = val
 
     return conf
