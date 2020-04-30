@@ -11,12 +11,14 @@ class Consumer(multiprocessing.Process):
 
     conf = {
         'auto_offset_reset': 'earliest',
-        'consumer_timeout_ms': 1000
+        'consumer_timeout_ms': 1000,
+        'api_version': '0.9',
+        'max_poll_interval_ms': 65535
     }
 
     def __init__(self, conf=None):
         self.getconf(conf)
-        logging.basicConfig( format='%(asctime)s.%(msecs)s:%(name)s:%(thread)d:%(levelname)s:%(process)d:%(message)s', level=logging.INFO)
+        logging.basicConfig( format='%(asctime)s.%(msecs)s:%(name)s:%(thread)d:%(levelname)s:%(process)d:%(message)s', level=logging.DEBUG)
         multiprocessing.Process.__init__(self)
         self.stop_event = multiprocessing.Event()
 
@@ -46,10 +48,7 @@ class Consumer(multiprocessing.Process):
         consumer.close()
 
     def readMessageByPartitionOffset(self):
-        consumer = KafkaConsumer(bootstrap_servers=self.conf['brokers'],
-                                 auto_offset_reset=self.conf['auto_offset_reset'],
-                                 consumer_timeout_ms=self.conf['consumer_timeout_ms'])
-
+        consumer = KafkaConsumer(bootstrap_servers=self.conf['brokers'])
         partition = TopicPartition(self.conf['topic'], self.conf['partition'])
         start = self.conf['offset']
         consumer.assign([partition])
@@ -67,6 +66,15 @@ class Consumer(multiprocessing.Process):
         client = SchemaRegistryClient(schema_registry)
         message_serializer = MessageSerializer(client)
         debug(level=1, MessageSerializer=MessageSerializer)
+
+        args = {
+            'bootstrap_servers': self.conf['brokers'],
+            'auto_offset_reset': self.conf['auto_offset_reset'],
+            'consumer_timeout_ms': self.conf['consumer_timeout_ms'],
+            'api_version': self.conf['api_version'],
+            'max_poll_interval_ms': self.conf['max_poll_interval_ms']
+       }
+
         try:
             security_protocol = self.conf['security_protocol']
         except:
@@ -79,12 +87,19 @@ class Consumer(multiprocessing.Process):
                     'sasl_mechanism': self.conf['sasl_mechanism'],
                     'sasl_plain_password': self.conf['sasl_plain_password']
                 }
+                args.update(pre_defined_kwargs)
             except:
                 errx("SASL_SSL options are not defined")
 
-        consumer = KafkaConsumer(bootstrap_servers=self.conf['brokers'],
-                                 auto_offset_reset=self.conf['auto_offset_reset'],
-                                 consumer_timeout_ms=self.conf['consumer_timeout_ms'], **pre_defined_kwargs)
+        consumer = KafkaConsumer(**args)
+        consumer.subscribe([ self.conf['topic'] ])
+        while not self.stop_event.is_set():
+            for message in consumer:
+                print(message)
+                if self.stop_event.is_set():
+                    break
+        consumer.close()
+        return None
 
         partition = TopicPartition(self.conf['topic'], self.conf['partition'])
         start = self.conf['offset']
@@ -96,3 +111,4 @@ class Consumer(multiprocessing.Process):
                 assert isinstance(message_encoded, bytes)
                 message_decoded = message_serializer.decode_message(message_encoded)
                 return message_decoded
+
