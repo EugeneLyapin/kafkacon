@@ -1,0 +1,19 @@
+Kafka:
+  brokers:
+    - kafka.nonprod.us-west-2.aws.com:9092
+  partition: 0
+  offset: 859
+  ssl_check_hostname: False
+  ssl_cafile: /etc/ssl/certs/GlobalSign_Root_CA.pem
+  topic: mytopic
+  sasl_mechanism: SCRAM-SHA-512
+  sasl_plain_username: mytopic.xxx
+  sasl_plain_password: xxx
+  security_protocol: SASL_SSL
+  api_version: '1.0'
+  consumer_timeout_ms: 10000
+  max_poll_interval_ms: 400
+  schema_registry: 'https://mytopic.xxx:xxx@schema-registry.nonprod.us-west-2.aws.com'
+KMS:
+  KeyId: alias/main/default
+  region: us-west-2
