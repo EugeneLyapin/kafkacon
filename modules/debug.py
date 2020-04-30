@@ -9,7 +9,7 @@ def errx(msg=None):
     sys.exit('')
 
 def trace(data=None):
-    if config.debug >= 9:
+    if config.debug >= 2:
         pp = pprint.PrettyPrinter(indent=1)
         pp.pprint(data)
 

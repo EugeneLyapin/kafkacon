@@ -2,113 +2,117 @@ import threading
 import logging
 import time
 import multiprocessing
-from kafka import KafkaConsumer, TopicPartition
-from schema_registry.client import SchemaRegistryClient, schema
-from schema_registry.serializers import MessageSerializer
-from debug import errx, debug, trace
+import io
+import struct
+import config
+from avro.io import BinaryDecoder, DatumReader
+from confluent_kafka import Consumer
+from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
+from confluent_kafka.avro.serializer import SerializerError
+from debug import debug, errx, trace
 
-class Consumer(multiprocessing.Process):
+MAGIC_BYTES = 0
 
-    conf = {
-        'auto_offset_reset': 'earliest',
-        'consumer_timeout_ms': 1000,
-        'api_version': '0.9',
-        'max_poll_interval_ms': 65535
+class KafkaConsumer(multiprocessing.Process):
+
+    Conf = {
+        'group.id': 'mygroup',
+        'auto.offset.reset': 'earliest'
     }
+
+    DebugOptions = {
+        'debug': 'all',
+        'log_level': '0'
+    }
+
+    consumer = None
+    RegistryClient = None
 
     def __init__(self, conf=None):
         self.getconf(conf)
-        logging.basicConfig( format='%(asctime)s.%(msecs)s:%(name)s:%(thread)d:%(levelname)s:%(process)d:%(message)s', level=logging.DEBUG)
-        multiprocessing.Process.__init__(self)
-        self.stop_event = multiprocessing.Event()
-
-    def stop(self):
-        self.stop_event.set()
+        self.initSchemaRegistry()
+        self.initConsumer()
+        if(config.debug >= 3):
+            logging.basicConfig( format='%(asctime)s.%(msecs)s:%(name)s:%(thread)d:%(levelname)s:%(process)d:%(message)s', level=logging.DEBUG)
 
     def getconf(self, conf):
+        self.Conf.update(conf['services']['Kafka'])
+        self.Conf.update(conf['parser'])
+
+    def initSchemaRegistry(self):
         try:
-            self.conf.update(conf['data']['Kafka'])
+            RegistryConfig = {
+                'url': self.Conf['schema.registry']
+            }
         except:
-            errx("No Kafka configuration found")
+            return
 
-        self.conf.update(conf['parser'])
-        trace(self.conf)
+        self.RegistryClient = CachedSchemaRegistryClient(**RegistryConfig)
+        debug(level=1, RegistryClient=self.RegistryClient)
 
-    def run(self):
-        consumer = KafkaConsumer(bootstrap_servers=self.conf['brokers'],
-                                 auto_offset_reset=self.conf['auto_offset_reset'],
-                                 consumer_timeout_ms=self.conf['consumer_timeout_ms'])
-        consumer.subscribe([ self.conf['topic'] ])
+    def assignPartitions(self, consumer, partitions):
+        for p in partitions:
+            p.offset = self.Conf['offset']
+        consumer.assign(partitions)
 
-        while not self.stop_event.is_set():
-            for message in consumer:
-                print(message)
-                if self.stop_event.is_set():
-                    break
-        consumer.close()
+    def initConsumer(self):
+        ConsumerConfig = {
+            'bootstrap.servers': self.Conf['brokers'],
+            'group.id': self.Conf['group.id'],
+            'auto.offset.reset': self.Conf['auto.offset.reset']
+        }
 
-    def readMessageByPartitionOffset(self):
-        consumer = KafkaConsumer(bootstrap_servers=self.conf['brokers'])
-        partition = TopicPartition(self.conf['topic'], self.conf['partition'])
-        start = self.conf['offset']
-        consumer.assign([partition])
-        consumer.seek(partition, start)
-        for msg in consumer:
-            if msg.offset == start:
-                return msg.value
-
-    def readMessageByPartitionOffsetAvro(self):
-        try:
-            schema_registry = self.conf['schema_registry']
-        except:
-            errx("Option 'schema_registry' not found")
-
-        client = SchemaRegistryClient(schema_registry)
-        message_serializer = MessageSerializer(client)
-        debug(level=1, MessageSerializer=MessageSerializer)
-
-        args = {
-            'bootstrap_servers': self.conf['brokers'],
-            'auto_offset_reset': self.conf['auto_offset_reset'],
-            'consumer_timeout_ms': self.conf['consumer_timeout_ms'],
-            'api_version': self.conf['api_version'],
-            'max_poll_interval_ms': self.conf['max_poll_interval_ms']
-       }
+        if(config.debug >= 3):
+            ConsumerConfig.update(self.DebugOptions)
+        trace(ConsumerConfig)
 
         try:
-            security_protocol = self.conf['security_protocol']
+            security_protocol = self.Conf['security.protocol']
         except:
             pass
 
         if security_protocol == 'SASL_SSL':
             try:
-                pre_defined_kwargs = {
-                    'sasl_plain_username': self.conf['sasl_plain_username'],
-                    'sasl_mechanism': self.conf['sasl_mechanism'],
-                    'sasl_plain_password': self.conf['sasl_plain_password']
+                ssl_kwargs = {
+                    'security.protocol': self.Conf['security.protocol'],
+                    'sasl.username': self.Conf['sasl.username'],
+                    'sasl.mechanisms': self.Conf['sasl.mechanisms'],
+                    'sasl.password': self.Conf['sasl.password']
                 }
-                args.update(pre_defined_kwargs)
+                ConsumerConfig.update(ssl_kwargs)
             except:
                 errx("SASL_SSL options are not defined")
 
-        consumer = KafkaConsumer(**args)
-        consumer.subscribe([ self.conf['topic'] ])
-        while not self.stop_event.is_set():
-            for message in consumer:
-                print(message)
-                if self.stop_event.is_set():
-                    break
-        consumer.close()
-        return None
+        self.consumer = Consumer(ConsumerConfig)
+        self.consumer.subscribe([ self.Conf['topic' ] ], on_assign=self.assignPartitions)
 
-        partition = TopicPartition(self.conf['topic'], self.conf['partition'])
-        start = self.conf['offset']
-        consumer.assign([partition])
-        consumer.seek(partition, start)
-        for message_encoded in consumer:
-            if message_encoded.offset == start:
-                assert len(message_encoded) > 5
-                assert isinstance(message_encoded, bytes)
-                message_decoded = message_serializer.decode_message(message_encoded)
-                return message_decoded
+    def unpack(self, payload):
+        magic, schema_id = struct.unpack('>bi', payload[:5])
 
+        if magic == MAGIC_BYTES:
+            schema = self.RegistryClient.get_by_id(schema_id)
+            reader = DatumReader(schema)
+            output = BinaryDecoder(io.BytesIO(payload[5:]))
+            abc = reader.read(output)
+            return abc
+        else:
+            return payload.decode()
+
+    def readMessageByPartitionOffsetAvro(self):
+        while True:
+            try:
+                msg = self.consumer.poll(1)
+            except SerializerError as e:
+                print("Message deserialization failed for {}: {}".format(msg, e))
+                raise SerializerError
+
+            if msg is None:
+                continue
+
+            if msg.error():
+                print("AvroConsumer error: {}".format(msg.error()))
+                continue
+
+            key, value = self.unpack(msg.key()), self.unpack(msg.value())
+            trace(value)
+            return value

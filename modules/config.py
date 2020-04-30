@@ -30,7 +30,7 @@ def getConf(args):
     data = yaml.safe_load(fd)
 
     conf = {
-      'data': data,
+      'services': data,
       'parser': {}
     }
 

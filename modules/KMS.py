@@ -97,7 +97,7 @@ class KMS(aws):
 
     def getconf(self, conf):
         try:
-            self.conf.update(conf['data']['KMS'])
+            self.conf.update(conf['services']['KMS'])
         except:
             errx("No KMS configuration found")
 
