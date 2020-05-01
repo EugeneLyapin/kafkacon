@@ -12,8 +12,8 @@ def getConf(args):
     parser = argparse.ArgumentParser()
     parser.add_argument('--brokers', type=str, dest='brokers', nargs='*', action='store', default=[])
     parser.add_argument('--offset', type=str, action='store', default=None)
-    parser.add_argument('--partition', type=str, action='store', default=None)
     parser.add_argument('--topic', type=str, action='store', default=None)
+    parser.add_argument('--group_id', type=str, action='store', default=None)
     parser.add_argument('--filename', type=str, action='store', default=default_filename)
     parser.add_argument('--debug', type=int, action='store', default=0)
     options = parser.parse_args(args)
@@ -34,13 +34,13 @@ def getConf(args):
       'parser': {}
     }
 
-    for key in ['offset', 'partition', 'topic', 'debug']:
+    for key in ['offset', 'topic', 'debug', 'group_id']:
         val = getattr(options, key)
         if val != None:
             conf['parser'][key] = val
 
     val = options.brokers
     if val != []:
-        conf['parser']['brokers'] = val
+        conf['parser']['brokers'] = str.join(',', val)
 
     return conf

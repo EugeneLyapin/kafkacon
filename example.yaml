@@ -1,14 +1,16 @@
 Kafka:
   brokers: 'brook.nonprod.us-west-2.aws.com:9092'
-  partition: 0
   offset: 213
   topic: mytopic
-  sasl.mechanisms: SCRAM-SHA-512
-  sasl.username: mygroup.xxx
-  sasl.password: xxx
-  security.protocol: SASL_SSL
-  group.id: mygroup
+  group_id: mygroup
   schema.registry: 'https://mygroup.xxx:xxx@schema-registry.nonprod.us-west-2.aws.com'
+  properties:
+    sasl.mechanisms: SCRAM-SHA-512
+    sasl.username: mygroup.xxx
+    sasl.password: xxx
+    security.protocol: SASL_SSL
+
 KMS:
   KeyId: alias/main/default
   region: us-west-2
+  EncryptionAlgorithm: 'SYMMETRIC_DEFAULT'

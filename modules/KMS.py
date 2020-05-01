@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import time
 import datetime
@@ -45,22 +46,21 @@ class aws(object):
         return json.loads(json.dumps(data, default=self.json_datetime_serialize))
 
     def botoHandler(self, call=None, key=None, **kwargs):
-        items = { key: {} }
+        items = {}
         data = self.boto_method_handler(call=call, **kwargs)
         try:
             items = data[key]
         except:
             pass
 
-        return items
+        return { key: items }
 
     def boto_method_handler(self, call=None, **kwargs):
         data = {}
 
         trace({
             'timestamp': time.time(),
-            'call': call,
-            'args': kwargs
+            'call': call
         })
 
         try:
@@ -101,11 +101,7 @@ class KMS(aws):
         except:
             errx("No KMS configuration found")
 
-        self.conf.update(conf['parser'])
         trace(self.conf)
-
-    def base64decode(self, data):
-        return base64.b64decode(data)
 
     def decrypt(self, CiphertextBlob=None):
         try:
@@ -113,7 +109,10 @@ class KMS(aws):
         except:
             errx("No KeyId found in configuration file")
 
-        DecodedCiphertextBlob = self.base64decode(CiphertextBlob)
+        data = CiphertextBlob
+        if type(CiphertextBlob).__name__ != 'bytes':
+            data = base64.b64decode(CiphertextBlob)
+
         return self.botoHandler(call=self.client.decrypt, key='Plaintext',
-                                CiphertextBlob=DecodedCiphertextBlob, KeyId=KeyId,
+                                CiphertextBlob=data, KeyId=KeyId,
                                 EncryptionAlgorithm=self.conf['EncryptionAlgorithm'])

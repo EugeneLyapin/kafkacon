@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import threading
 import logging
 import time
@@ -16,7 +17,10 @@ MAGIC_BYTES = 0
 class KafkaConsumer(multiprocessing.Process):
 
     Conf = {
-        'group.id': 'mygroup',
+        'offset': 0,
+    }
+
+    ConsumerProperties = {
         'auto.offset.reset': 'earliest'
     }
 
@@ -38,6 +42,10 @@ class KafkaConsumer(multiprocessing.Process):
     def getconf(self, conf):
         self.Conf.update(conf['services']['Kafka'])
         self.Conf.update(conf['parser'])
+        try:
+            Properties = self.Conf['properties']
+        except:
+            self.Conf['properties'] = {}
 
     def initSchemaRegistry(self):
         try:
@@ -52,37 +60,24 @@ class KafkaConsumer(multiprocessing.Process):
 
     def assignPartitions(self, consumer, partitions):
         for p in partitions:
-            p.offset = self.Conf['offset']
+            p.offset = int(self.Conf['offset'])
+
         consumer.assign(partitions)
 
     def initConsumer(self):
         ConsumerConfig = {
-            'bootstrap.servers': self.Conf['brokers'],
-            'group.id': self.Conf['group.id'],
-            'auto.offset.reset': self.Conf['auto.offset.reset']
+            'bootstrap.servers': str.join(',', self.Conf['brokers']),
+            'group.id': self.Conf['group_id']
         }
+        ConsumerProperties = {}
 
         if(config.debug >= 3):
             ConsumerConfig.update(self.DebugOptions)
+
         trace(ConsumerConfig)
-
-        try:
-            security_protocol = self.Conf['security.protocol']
-        except:
-            pass
-
-        if security_protocol == 'SASL_SSL':
-            try:
-                ssl_kwargs = {
-                    'security.protocol': self.Conf['security.protocol'],
-                    'sasl.username': self.Conf['sasl.username'],
-                    'sasl.mechanisms': self.Conf['sasl.mechanisms'],
-                    'sasl.password': self.Conf['sasl.password']
-                }
-                ConsumerConfig.update(ssl_kwargs)
-            except:
-                errx("SASL_SSL options are not defined")
-
+        ConsumerProperties.update(self.ConsumerProperties)
+        ConsumerProperties.update(self.Conf['properties'])
+        ConsumerConfig.update(ConsumerProperties)
         self.consumer = Consumer(ConsumerConfig)
         self.consumer.subscribe([ self.Conf['topic' ] ], on_assign=self.assignPartitions)
 
@@ -114,5 +109,4 @@ class KafkaConsumer(multiprocessing.Process):
                 continue
 
             key, value = self.unpack(msg.key()), self.unpack(msg.value())
-            trace(value)
             return value

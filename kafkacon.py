@@ -14,13 +14,14 @@ from KMS import KMS
 
 def main():
     consumer = KafkaConsumer(conf=conf)
-    CiphertextBlob = consumer.readMessageByPartitionOffsetAvro()
-    trace(CiphertextBlob)
-    CiphertextBlob = 'AQICAHhJQblkxQwd25zGDR3lbyJ2t+DNP98Mw8bSKctqHqSS7AGdEYy39rHwqpkcPDzXy2QIAAAAbTBrBgkqhkiG9w0BBwagXjBcAgEAMFcGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMC7BlNXPlD1H00MRtAgEQgCoj1FXHltlKtwOsZ5lSC9IHjd18A2nc66R/G8Gk0p39wEnqwa0U4MmonGY='
+    Blob = consumer.readMessageByPartitionOffsetAvro()
     kms = KMS(conf=conf)
     debug(level=1, obj=kms, service=kms.service)
+
+    # Dict value example to decrypt
+    CiphertextBlob = Blob['customerIdentity']['email']
     data = kms.decrypt(CiphertextBlob=CiphertextBlob)
-    debug(level=1, service=kms.service, data=data)
+    trace(data)
 
 if __name__ == '__main__':
     conf = config.getConf(sys.argv[1:])
