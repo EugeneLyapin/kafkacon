@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import sys
 import os
@@ -15,11 +16,12 @@ from KMS import KMS
 def main():
     consumer = KafkaConsumer(conf=conf)
     Blob = consumer.readMessageByPartitionOffsetAvro()
-    kms = KMS(conf=conf)
-    debug(level=1, obj=kms, service=kms.service)
 
     # Dict value example to decrypt
     CiphertextBlob = Blob['customerIdentity']['email']
+
+    kms = KMS(conf=conf)
+    debug(level=1, obj=kms, service=kms.service)
     data = kms.decrypt(CiphertextBlob=CiphertextBlob)
     print(data)
 

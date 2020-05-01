@@ -95,19 +95,29 @@ class KafkaConsumer(multiprocessing.Process):
             return payload.decode()
 
     def readMessageByPartitionOffsetAvro(self):
+        _count = False
+        print('polling ', end='', flush=True)
         while True:
             try:
                 msg = self.consumer.poll(1)
             except SerializerError as e:
+                if _count:
+                    print('SerializerError')
                 print("Message deserialization failed for {}: {}".format(msg, e))
                 raise SerializerError
 
             if msg is None:
+                _count = True
+                print('.', end='', flush=True)
                 continue
 
             if msg.error():
+                if _count:
+                    print('msg.error')
                 print("AvroConsumer error: {}".format(msg.error()))
                 continue
 
             key, value = self.unpack(msg.key()), self.unpack(msg.value())
+            if _count:
+                print('ok')
             return value
