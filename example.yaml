@@ -2,7 +2,7 @@ Kafka:
   brokers: 'brook.nonprod.us-west-2.aws.com:9092'
   offset: 213
   topic: mytopic
-  group_id: mygroup
+  groupid: mygroup
   schema.registry: 'https://mygroup.xxx:xxx@schema-registry.nonprod.us-west-2.aws.com'
   properties:
     sasl.mechanisms: SCRAM-SHA-512

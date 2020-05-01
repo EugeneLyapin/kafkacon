@@ -1,6 +1,6 @@
 # KafkaCon
 
-Create a new Consumer instance using the provided configuration, poll value from the offset and decrypt field(s) (optional).
+Create a new Consumer instance using the provided configuration, poll value from the offset and decrypt field(s) using AWS CMK (optional).
 
 ## Prerequisites
 1. Use `python3.6`
@@ -16,24 +16,29 @@ $ pip install -r requirements.txt
 
 ## Usage
 ```
-usage: kafkacon.py [-h] [--brokers [BROKERS [BROKERS ...]]] [--offset OFFSET]
-                   [--partition PARTITION] [--topic TOPIC]
-                   [--filename FILENAME] [--debug DEBUG]
+usage: kafkacon.py
+       [-h] [--brokers [BROKERS [BROKERS ...]]] [--offset OFFSET]
+       [--topic TOPIC] [--groupid GROUPID] [--filename FILENAME]
+       [--debug DEBUG]
 ```
 All required optional arguments can override configuration file settings.
 
 Optional arguments:
 ```
   -h, --help            show this help message and exit
-  --brokers [BROKERS [BROKERS ...]] - The List of brokers to connect (required)
-  --offset OFFSET - The offset to seek to (required)
-  --topic TOPIC - The topic (required)
-  --filename FILENAME -- The filename to read configuration for KMS/Kafka (optional, default: config.yaml)
-  --debug DEBUG - Debug level (0..3) (optional)
+  --brokers [BROKERS [BROKERS ...]]
+                        The List of brokers to connect (required)
+  --offset OFFSET       The offset to seek to (required)
+  --topic TOPIC         The topic (required)
+  --groupid GROUPID     Client group id string. All clients sharing the same
+                        group.id belong to the same group (required)
+  --filename FILENAME   The filename to read configuration for KMS/Kafka
+                        (optional, default: config.yaml)
+  --debug DEBUG         Debug level (0..3) (optional)
 ```
 ## Example
 ```bash
-python kafkacon.py --brokers localhost:9092 localhost:9093 localhost:9094 --offset 111 --topic mytopic
+$ AWS_PROFILE=myprofile python kafkacon.py --brokers localhost:9092 localhost:9093 localhost:9094 --offset 111 --topic mytopic --groupid mygroup
 ```
 
 ## Confguration example
@@ -44,7 +49,7 @@ Kafka:
   brokers: 'brook.nonprod.us-west-2.aws.com:9092'
   offset: 213
   topic: mytopic
-  group_id: mygroup
+  groupid: mygroup
   schema.registry: 'https://mygroup.xxx:xxx@schema-registry.nonprod.us-west-2.aws.com'
   properties:
     sasl.mechanisms: SCRAM-SHA-512
@@ -61,7 +66,7 @@ KMS:
 * `brokers` - The List of brokers to connect (required)
 * `offset` - The offset to seek to (required)
 * `topic` - The topic (required)
-* `group_id` - Client group id string. All clients sharing the same group.id belong to the same group. (required)
+* `groupid` - Client group id string. All clients sharing the same group.id belong to the same group. (required)
 
 ### Kafka Client properties:
 * `sasl.mechanisms` - SASL mechanism to use for authentication. Supported: GSSAPI, PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, OAUTHBEARER. NOTE: Despite the name only one mechanism must be configured.

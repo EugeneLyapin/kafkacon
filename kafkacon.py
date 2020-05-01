@@ -21,7 +21,7 @@ def main():
     # Dict value example to decrypt
     CiphertextBlob = Blob['customerIdentity']['email']
     data = kms.decrypt(CiphertextBlob=CiphertextBlob)
-    trace(data)
+    print(data)
 
 if __name__ == '__main__':
     conf = config.getConf(sys.argv[1:])

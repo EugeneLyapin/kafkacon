@@ -67,8 +67,9 @@ class KafkaConsumer(multiprocessing.Process):
     def initConsumer(self):
         ConsumerConfig = {
             'bootstrap.servers': str.join(',', self.Conf['brokers']),
-            'group.id': self.Conf['group_id']
+            'group.id': self.Conf['groupid']
         }
+
         ConsumerProperties = {}
 
         if(config.debug >= 3):
