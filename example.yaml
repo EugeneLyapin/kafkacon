@@ -1,3 +1,4 @@
+# example configuration
 Kafka:
   brokers: 'brook.nonprod.us-west-2.aws.com:9092'
   offset: 213
