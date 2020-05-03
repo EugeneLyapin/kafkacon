@@ -41,7 +41,7 @@ class KafkaConsumer(multiprocessing.Process):
 
     def getconf(self, conf):
         self.Conf.update(conf['services']['Kafka'])
-        self.Conf.update(conf['parser'])
+        self.Conf.update(conf['args'])
         try:
             Properties = self.Conf['properties']
         except:

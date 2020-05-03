@@ -1,6 +1,14 @@
 # KafkaCon
 
-Create a new Consumer instance using the provided configuration, poll value from the offset and decrypt field(s) using AWS CMK (optional).
+KafkaConsumer reader and KMS/AWSEncryptionSDK decryptor.
+
+## Features
+* Create a new Kafka `Consumer` instance using the provided configuration, poll the value from the offset, return `CiphertextBlob (dict)`;
+* Decrypt `CiphertextBlob (dict)` field(s) using AWS KMS or AWS Encryption SDK. `KafkaCon` tries to decrypt iterating all `values (byte)` in nested `CiphertextBlob (dict)`.
+You can choose `AWSEncryptionSDK` or `KMS` configuration options to decrypt data from Kafka;
+* Read JSON `CiphertextBlob` from `stdin`. You can use `stdin` option to read JSON data from stdin and decrypt;
+* Logging (0..3 levels);
+* Configuration in YAML;
 
 ## Prerequisites
 1. Use `python3.6`
@@ -19,7 +27,7 @@ $ pip install --upgrade -r requirements.txt
 usage: kafkacon.py
        [-h] [--brokers [BROKERS [BROKERS ...]]] [--offset OFFSET]
        [--topic TOPIC] [--groupid GROUPID] [--filename FILENAME]
-       [--debug DEBUG]
+       [--debug DEBUG] [--input INPUT] [--decrypt DECRYPT]
 ```
 All required optional arguments can override configuration file settings.
 
@@ -35,19 +43,23 @@ Optional arguments:
   --filename FILENAME   The filename to read configuration for KMS/Kafka
                         (optional, default: config.yaml)
   --debug DEBUG         Debug level (0..3) (optional)
+  --input INPUT         The input to read CiphertextBlob: kafka|stdin
+                        (optional, default:kafka)
+  --decrypt DECRYPT     The decryption method: aws_encryption_sdk|aws_kms
+                        (optional, default:aws_encryption_sdk)
 ```
 ## Example
 ```bash
-$ AWS_PROFILE=myprofile python kafkacon.py --brokers localhost:9092 localhost:9093 localhost:9094 --offset 111 --topic mytopic --groupid mygroup
+$ AWS_PROFILE=myprofile python kafkacon.py --brokers localhost:9092 localhost:9093 localhost:9094 --offset 123 --topic mytopic --groupid mygroup
 ```
 
-## Confguration example
+## Configuration example
 
 See example.yaml
 ```
 Kafka:
   brokers: 'brook.nonprod.us-west-2.aws.com:9092'
-  offset: 213
+  offset: 123
   topic: mytopic
   groupid: mygroup
   schema.registry: 'https://mygroup.xxx:xxx@schema-registry.nonprod.us-west-2.aws.com'
@@ -61,6 +73,12 @@ KMS:
   KeyId: alias/main/default
   region: us-west-2
   EncryptionAlgorithm: 'SYMMETRIC_DEFAULT'
+
+AWSEncryptionSDK:
+  KeyId: arn:aws:kms:eu-central-1:1234567890123:key/f80f19e7-d1e1-4405-a189-ed7c9cc710c0
+  encryption_context:
+    purpose: test
+    "aws-crypto-public-key": "xxx"
 ```
 ### Kafka main options:
 * `brokers` - The List of brokers to connect (required)
@@ -79,6 +97,7 @@ Full list of configuration options is here: https://github.com/edenhill/librdkaf
 ## SchemaRegistry options:
 * `schema.registry` - SchemaRegistry url
 
+You can choose AWSEncryptionSDK or KMS options to decrypt data from Kafka.
 ### KMS options:
 * `region (string)` -- AWS region
 
@@ -107,7 +126,37 @@ This parameter is required only when the ciphertext was encrypted under an asymm
 
 Supported: `'SYMMETRIC_DEFAULT'|'RSAES_OAEP_SHA_1'|'RSAES_OAEP_SHA_256'`
 
+## AWSEncryptionSDK options
+* `KeyId (string)`
+Specifies the customer master key (CMK) that AWS KMS will use to decrypt the ciphertext. Enter a key ID of the CMK that was used to encrypt the ciphertext.
+
+For example:
+```
+Key ARN: arn:aws:kms:us-east-2:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
+```
+* `encryption_context (string)`
+Specifies the set of name-value pairs that contain arbitrary, non-secret additional authenticated data. The encryption context can contain any data you choose, but it typically consists of data that is useful in logging and tracking, such as data about the file type, purpose, or ownership.
+
+For example:
+```
+"Purpose"="Test", "Department"="IT", aws-crypto-public-key=<public key>
+```
+## Read JSON data from stdin
+For example:
+```bash
+$ kafkacat -b kafka.nonprod.us-west-1.aws.domain.com:9092 \
+        -X security.protocol=sasl_ssl \
+        -X sasl.mechanisms=SCRAM-SHA-512 \
+        -X sasl.username=xxx \
+        -X sasl.password=xxx \
+        -t guest-customer-confidential-avro \
+        -s value=avro -r https://xxx:xxx@schema-registry.nonprod.us-west-1.aws.domain.com \
+        -D , -e -c 1 -O -f '%s' -o 123 | python3 kafkacon.py --filename ~/.kafkacon/config.yaml --input stdin
+```
+
 ## Links
 * https://docs.confluent.io/current/clients/confluent-kafka-python/#pythonclient-configuration
 * https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 * https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/kms.html#KMS.Client.decrypt
+* https://docs.aws.amazon.com/encryption-sdk/latest/developer-guide/concepts.html
+* https://github.com/aws/aws-encryption-sdk-python/
