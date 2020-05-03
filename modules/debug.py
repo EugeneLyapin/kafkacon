@@ -9,8 +9,9 @@ def errx(msg=None):
         print("[ERROR]: %s" % msg)
     sys.exit('')
 
-def trace(data=None):
-    if config.debug >= 2:
+def trace(data, **kwargs):
+    debug = kwargs.get('debug', config.debug)
+    if debug >= 2 or debug == True:
         pp = pprint.PrettyPrinter(indent=1)
         pp.pprint(data)
 

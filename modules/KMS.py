@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-import json
-import time
-import datetime
-import yaml
 import boto3
 import base64
+import aws_encryption_sdk
+from aws_encryption_sdk.key_providers.kms import KMSMasterKey
 from botocore.exceptions import ClientError, ParamValidationError, EndpointConnectionError, ConnectTimeoutError
 from debug import errx, debug, trace
 
@@ -28,22 +26,14 @@ class aws(object):
         pass
 
     def connect(self):
-        try:
-            self.region = self.conf['region']
-        except:
-            errx('Option region is not defined')
-
-        return boto3.client(self.service, region_name=self.region)
+        pass
 
     def getname(self):
         return self.__class__.__name__
 
-    def json_datetime_serialize(self, o):
-        if isinstance(o, (datetime.date, datetime.datetime)):
-            return o.isoformat()
-
-    def json_datetime_convert(self, data):
-        return json.loads(json.dumps(data, default=self.json_datetime_serialize))
+    def read_stdin():
+        data = sys.stdin.read()
+        return json.loads(data)
 
     def botoHandler(self, call=None, key=None, **kwargs):
         items = {}
@@ -66,10 +56,10 @@ class aws(object):
         try:
             data = call(**kwargs)
         except ConnectTimeoutError as error:
-            debug(level=1, service=self.name, region=self.region, error=error)
+            debug(level=1, service=self.name, error=error)
 
         except EndpointConnectionError as error:
-            debug(level=1, service=self.name, region=self.region, error=error)
+            debug(level=1, service=self.name, error=error)
 
         except ClientError as error:
             try:
@@ -81,7 +71,7 @@ class aws(object):
 
         except (ValueError, TypeError, ParamValidationError) as error:
             debug(level=1, service=self.name, region=self.region)
-            errx(error)
+            raise
 
         try:
             del data['ResponseMetadata']
@@ -95,24 +85,88 @@ class KMS(aws):
     name = "KMS"
     service = "kms"
 
+    def connect(self):
+        try:
+            self.region = self.conf['region']
+        except:
+            errx('Option region is not defined')
+
+        return boto3.client(self.service, region_name=self.region)
+
     def getconf(self, conf):
         try:
-            self.conf.update(conf['services']['KMS'])
+            self.conf.update(conf['services'][self.name])
         except:
             errx("No KMS configuration found")
 
         trace(self.conf)
 
-    def decrypt(self, CiphertextBlob=None):
+    def decode(self, data):
+        CiphertextBlob = data
+        if type(data).__name__ != 'bytes':
+            CiphertextBlob = base64.b64decode(data)
+
+        return CiphertextBlob
+
+    def decrypt_all(self, iterable):
+        if isinstance(iterable, dict):
+            for key, value in iterable.items():
+                if not (isinstance(value, dict) or isinstance(value, list)):
+                    if type(value).__name__ == 'bytes':
+                        iterable[key] = self.decrypt(value)
+                else:
+                    self.decrypt_all(value)
+        elif isinstance(iterable, list):
+            for value in iterable:
+                self.decrypt_all(value)
+
+    def decrypt(self, data):
         try:
             KeyId = self.conf['KeyId']
         except:
             errx("No KeyId found in configuration file")
 
-        data = CiphertextBlob
-        if type(CiphertextBlob).__name__ != 'bytes':
-            data = base64.b64decode(CiphertextBlob)
+        return self.botoHandler(
+            call=self.client.decrypt, key='Plaintext',
+            CiphertextBlob=self.decode(data), KeyId=KeyId,
+            EncryptionAlgorithm=self.conf['EncryptionAlgorithm']
+        )
 
-        return self.botoHandler(call=self.client.decrypt, key='Plaintext',
-                                CiphertextBlob=data, KeyId=KeyId,
-                                EncryptionAlgorithm=self.conf['EncryptionAlgorithm'])
+class AWSEncryptionSDK(KMS):
+    """AWSEncryptionSDK boto3 class"""
+    name = "AWSEncryptionSDK"
+
+    KeyId = None
+    EncryptionContext = None
+
+    def getconf(self, conf):
+        try:
+            self.conf.update(conf['services'][self.name])
+        except:
+            errx("No AWSEncryptionSDK configuration found")
+
+        try:
+            self.KeyId = self.conf['KeyId']
+            self.EncryptionContext = self.conf['encryption_context']
+        except:
+            errx("No KeyId/encryption_context found in configuration file")
+
+        trace(self.conf)
+
+    def connect(self):
+        pass
+
+    def encrypt(self, data):
+        master_key = KMSMasterKey(key_id=self.KeyId)
+        ciphertext, _encrypt_header = aws_encryption_sdk.encrypt(
+            source=data, encryption_context=self.EncryptionContext, key_provider=master_key
+        )
+
+        assert ciphertext != data
+        return ciphertext
+
+    def decrypt(self, data):
+        master_key = KMSMasterKey(key_id=self.KeyId)
+        decrypted, decrypt_header = aws_encryption_sdk.decrypt(source=self.decode(data), key_provider=master_key)
+        assert set(self.EncryptionContext.items()) <= set(decrypt_header.encryption_context.items())
+        return decrypted
