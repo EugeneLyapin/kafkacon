@@ -31,10 +31,6 @@ class aws(object):
     def getname(self):
         return self.__class__.__name__
 
-    def read_stdin():
-        data = sys.stdin.read()
-        return json.loads(data)
-
     def botoHandler(self, call=None, key=None, **kwargs):
         items = {}
         data = self.boto_method_handler(call=call, **kwargs)
